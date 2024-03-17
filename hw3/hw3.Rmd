@@ -1,0 +1,264 @@
+---
+title: "Homework 3"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=T,eval=T,message=F,warning=F,fig.align='center')
+```
+
+
+## Problem 1: The infamous mule kick data <small>20pts</small>
+
+The file `mule_kicks.csv`, available for download (here)[https://kdlevin-uwstat.github.io/STAT340-Fall2021/hw/03/mule_kicks.csv], contains a simplified version of a very famous data set. The data consists of the number of soldiers killed by being kicked by mules or horses each year in a number of different companies in the Prussian army near the end of the 19th century.
+
+This may seem at first to be a very silly thing to collect data about, but it is a very interesting thing to look at if you are interested in rare events. Deaths by horse kick were rare events that occurred independently of one another, and thus it is precisely the kind of process that we might expect to obey a Poisson distribution.
+
+Download the data and read it into R by running
+
+```{r}
+download.file('https://kdlevin-uwstat.github.io/STAT340-Fall2021/hw/03/mule_kicks.csv', destfile='mule_kicks.csv')
+mule_kicks = read.csv('mule_kicks.csv', header=TRUE)
+
+head(mule_kicks)
+```
+
+`mule_kicks` contains a single column, called `deaths`.
+Each entry is the number of soldiers killed in one corps of the Prussian army in one year.
+There are 14 corps in the data set, studied over 20 years, for a total of 280 death counts.
+
+
+### Part a: estimating the Poisson rate <small>5pts</small>
+
+Assuming that the mule kicks data follows a Poisson distribution, produce a point estimate for the rate parameter $\lambda$.
+There are no strictly right or wrong answers, here, though there are certainly better or worse ones.
+
+```{r}
+lambdahat = mean(mule_kicks$deaths)
+lambdahat
+```
+
+
+### Part b: constructing a CI <small>10pts</small>
+
+Using everything you know (Monte Carlo, CLT, etc.), construct a confidence interval for the rate parameter $\lambda$.
+Explain in reasonable detail what you are doing and why you are constructing the confidence interval in this way (a few sentences is fine!).
+
+```{r}
+n = 280
+lambdahat = mean(mule_kicks$deaths)
+
+NMC = 10000
+
+means = rep(NA,NMC)
+
+for (i in 1:NMC) {
+  sample_data = rpois(n=n, lambda = lambdahat)
+  
+  means[i] = mean(sample_data)
+}
+
+ci = quantile(means, probs = c(0.025, 0.975))
+ci
+```
+
+***
+
+First using use a large number with the monte carlo method helps with having consistent results. Run samples based off the original data and save the mean in a vector. Then using the quantile function we can get a 95% confidence interval, using the function skips calculating the standard deviation manually and using the confidence interval formula manually.
+
+***
+
+
+### Part c: assessing a model <small>5pts</small>
+
+Here's a slightly more open-ended question.
+We *assumed* that the data followed a Poisson distribution.
+This may or may not be a reasonable assumption.
+Use any and all tools that you know to assess (either with code or simply in words) how reasonable or unreasonable this assumption is.
+
+Once again, there are no strictly right or wrong answers here.
+Explain and defend your decisions and thought processes in a reasonable way and you will receive full credit.
+
+***
+
+We can try to create lots of intervals and count how often our interval contains the true value of lambda. The result should be about 0.95 and if it is, then the assumption of mule deaths data being a Poisson distribution is reasonable.
+```{r}
+# THIS CODE IS FROM LECTURE NOTES EXAMPLE
+run_trial <- function(lambdatrue, n, Nrep) {
+  data = rpois(n=n, lambda=lambdatrue);
+  lambdahat = mean(data);
+  replicates = rep(NA,Nrep);
+  for ( i in 1:Nrep) {
+    fake_data = rpois(n=n, lambda=lambdahat);
+    replicates[i] = mean(fake_data);
+  }
+
+  CI = quantile(replicates, probs=c(0.025, 0.975), names=FALSE);
+  return( (CI[1] < lambdatrue) & (lambdatrue < CI[2]) );
+}
+```
+```{r}
+NMC = 500;
+expt_results = rep(NA,NMC);
+for (i in 1:NMC) {
+  expt_results[i] = run_trial(lambdatrue=2.718, n=80, Nrep=1000)
+}
+
+sum(expt_results)/length(expt_results)
+```
+
+Result is close to 0.95, so the assumption of data being a Poisson distribution is reasonable.
+
+***
+
+
+
+## Problem 2: Closing the loop <small>10 pts</small>
+
+In our discussion of the Universal Widgets of Madison company from lecture, we said that we were interested in two questions:
+
+1. Estimating the probability $p$ that a widget is functional.
+2. How many widgets should be in a batch to ensure that (with high probability) a batch ships with at least $5$ functional widgets in it?
+
+We discussed question (1) at length in lecture.
+What about question (2)?
+Our client wants to know how many widgets should ship in each batch so as to ensure that the probability there are at least $5$ functional widgets in a batch is at least $0.99$.
+
+Now, suppose that we have observed data and estimated $p$ to be $0.82$.
+
+Use everything you know so far in this course to give a recommendation to the client.
+Be sure to explain clearly what you are doing and why.
+If there are any steps, assumptions, etc., that you are not 100% pleased with, feel free to point them out.
+
+__Note:__ there are at least two "obvious" ways to solve this problem. One is based on using Monte Carlo (i.e., assume $p=0.82$ is the truth, and try generating batches of different sizes, etc.).
+The other uses direct computation of probabilities, using basic facts about Binomial RVs.
+Neither of these is necessarily better than the other, and you do not need to use both approaches to receive full credit.
+Indeed, you are free to try doing something else entirely, if you wish.
+Just explain clearly what you are doing and why!
+
+```{r}
+p = 0.82
+target_p = 0.99
+size = 5
+NMC = 10000
+functional_count = 0
+
+for (i in 1:NMC) {
+  batch = rbinom(size, 1, p)
+  
+  if (sum(batch) >= 5) {
+    functional_count = functional_count + 1
+  }
+}
+
+estimated_p = functional_count / NMC
+# estimated_p
+
+while (estimated_p < target_p) {
+  size = size + 1
+  functional_count = 0
+
+  for (i in 1:NMC) {
+    batch = rbinom(size, 1, p)
+    if (sum(batch) >= 5) {
+      functional_count <- functional_count + 1
+    }
+  }
+
+  estimated_p = functional_count / NMC
+}
+
+size
+```
+
+***
+
+First find the probability that batch size of 5 has 5 functional widgets (using monte carlo method to find it), the result is around 0.3654. Then, starting with that probability, increase batch size until it reaches the targeted probability of 0.99 (using monte carlo method to simulate random samples). Result is 10 when the while loop stops. 
+
+***
+
+
+## Problem 3: Permutation testing for correlatedness <small>20pts</small>
+
+We mentioned in lecture that independence and uncorrelatedness are usually things that we have to assume of our data, but that there are, in some settings, ways to detect the presence or absence of dependence.
+This problem will give an example of that, using our old friend the permutation test.
+
+Suppose that we observe pairs $(X_i, Y_i)$ where $X_i, Y_i \in \mathbb{R}$ for each $i=1,2,\dots,n$, with all $n$ pairs being independent of one another.
+That is, $(X_i,Y_i)$ is independent of $(X_j,Y_j)$ for $i \neq j$.
+
+Most typically, we think of these as predictor-response pairs.
+For example, the $X_i$ might represent years of education and $Y_i$ might represent income at age 30, and we want to predict $Y$ from a given value of $X$.
+These kinds of problems are probably familiar to you from your discussion of regression in STAT240, and that's a problem we'll return to in a couple of weeks.
+For now, though, let's forget about trying to estimate a regression coefficient or predict anything and instead just try to assess whether or not the $X$s and $Y$s are correlated at all.
+
+If $X_i$ and $Y_i$ are completely uncorrelated over all $i=1,2,\dots,n$, then, much like in permutation testing, it shouldn't matter what order the $Y$s appear with respect to the $X$s.
+That is, we should be able to shuffle the responses (i.e., the $Y_i$ terms) and not much should change in terms of how the data "looks".
+In particular, the correlation between the $X$s and $Y$s should not change much on average.
+
+
+### Part a: reading data, plotting and the eyeball test <small>10pts</small>
+
+The following code reads the horsepower (`hp`) and miles per gallon (`mpg`) columns from the famous `mtcars` data set (see `?mtcars` for background or a refresher).
+
+```{r}
+hp <- mtcars$hp
+mpg <- mtcars$mpg
+```
+
+Create a scatter plot of the data and state whether or not you think the variables `hp` and `mpg` are correlated, based on the plot (and explain what in the plot makes you think this).
+There is no need to do any statistics here-- just look at the data and describe what you see and what it suggests to you.
+
+```{r}
+library(ggplot2)
+
+ggplot(mtcars, aes(x = hp, y = mpg)) +
+  geom_point()
+```
+
+***
+
+I think the variables hp and mpg are correlated, based off the plot, as hp increases, mpg tends to decrease.
+
+***
+
+
+### Part b: testing for correlation <small>10pts</small>
+
+Use a permutation test to assess whether or not the vectors `hp` and `mpg` are correlated.
+Pick a reasonable level $\alpha$ for your test and accept or reject the null hypothesis (letting $H$ be the RV representing horsepower and $M$ be the RV representing miles per gallon)
+
+$$
+H_0 : \operatorname{ Corr }( H, M ) = 0
+$$
+
+accordingly.
+Be sure to clearly explain your reasoning and give a basic explanation of the procedure you are following.
+Imagine that you are writing for a fellow STAT340 student, rather than for your professor or TA.
+
+__Hint:__ remember, the basic permutation recipe is to shuffle the data and then compute the test statistic on the shuffled data.
+In this case, the "right" test statistic is clearly... (you'll have to decide, but there are one or two pretty obvious choices), and shuffling the data just corresponds to permuting the entries of either `hp` or `mpg`.
+
+```{r}
+observed_corr = cor(hp, mpg)
+NMC = 10000
+
+permutation_corrs = rep(NA,)
+
+for (i in 1:NMC) {
+  permuted_hp = sample(hp)
+  
+  permutation_corr = cor(permuted_hp, mpg)
+  
+  permutation_corrs[i] <- permutation_corr
+}
+# cat(permutation_corrs)
+p = sum((abs(permutation_corrs) - abs(observed_corr)) >= 0) / NMC
+p
+```
+
+***
+
+Using a monte carlo method first to shuffle data by permuting hp, then compare the correlation value of the sample to the original data's correlation and see if there is a difference. Then sum up the number of times there is a difference and divide by the number of runs of monte carlo to calculate p-value.
+The p-value is smaller than the alpha level of 0.05 so we reject the null hypothesis that the correlation between hp and mpg is 0. 
+
+***

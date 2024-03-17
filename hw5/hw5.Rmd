@@ -1,0 +1,344 @@
+---
+title: "Homework 5"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=T,eval=T,message=F,warning=F,fig.align='center')
+```
+
+Each part of each question will be 5pts, there are 10 parts, so 50pts total. <br/>
+
+
+## 1. Interpreting logistic regression <small>15pts</small>
+
+Suppose we collect data for a group of students in a statistics class with independent variables $X_{1}=\text{hours studied}$, $X_{2}=\text{GPA}$, and binary response variable
+$$
+Y= \begin{cases} 1 &\mbox{ if student received an A} \\
+  0 &\mbox{ otherwise. }
+  \end{cases}
+$$
+Suppose that we fit a logistic regression model to the data, predicting $Y$ from $X_1$ and $X_2$ (and an intercept term) and produce estimated coefficients $\hat{\beta}_{0}=-6, \hat{\beta}_{1}=0.05, \hat{\beta}_{2}=1$.
+
+### Part a) Logistic regression and probability
+
+According to our fitted model, what is the probability that a student receives an A if they study for $40$ hours and have a GPA of $3.5$?
+
+```{r}
+P = 1 / (1 + exp(-(-6+0.05*40+1*3.5)))
+
+P
+```
+
+### Part b) Interpreting coefficients
+According to our fitted model, an additional hour spent studying is associated with *how much* of an increase in the log odds of receiving an A?
+
+```{r}
+x1 = 0.05
+
+x1
+```
+
+### Part c) "Inverting" logistic regression probabilities
+According to our fitted model, how many hours would the student in Part (a) need to study to have a $50\%$ chance of getting an A in the class?
+That is, keeping GPA fixed at $3.5$, how many hours of study are needed so that the probability of an A is $50\%$?
+If you aren't up for the math, feel free to find an approximate solution via guess-and-check in R.
+
+***
+
+0.5 = 1 / (1 + exp(-(-6+0.05*HOURS+1*3.5)))  
+solve for HOURS  
+
+1 + exp(-(-6+0.05*HOURS+3.5)) = 2  
+exp(-(-6+0.05*HOURS+3.5)) = 1  
+-(-6+0.05*HOURS+3.5) = ln(1)  
+-(-6+0.05*HOURS+3.5) = 0  
+−6+0.05*HOURS+3.5 = 0  
+0.05*HOURS = 2.5  
+HOURS = 50
+
+***
+
+```{r}
+# calculations are above, format is bad sorry
+#TODO: code for calculation goes here, if necessary.
+HOURS = 50
+HOURS
+```
+
+
+<br/>
+
+## 2. `mtcars` one more time <small>10pts</small>
+
+Let's take yet another look at the `mtcars` data set.
+Recall that the columns of this data set are:
+```{r}
+names(mtcars)
+```
+
+The `am` column encodes whether a car is automatic (`0`) or manual (`1`).
+Let's build a model to predict whether a car is manual or automatic.
+
+### Part a) Fitting/interpreting a model
+
+Fit a logistic regression model to regress `am` against the `drat` and `disp` (and an intercept term).
+
+```{r}
+model = glm(am ~ drat + disp, data = mtcars, family = binomial)
+
+summary(model)
+```
+
+Which coefficients (if any) are statistically significantly different from zero at the $\alpha=0.05$ level?
+Interpret the meaning of the estimated coefficient(s) that is/are statistically significantly different from zero.
+
+***
+
+Disp is statistically different from zero at the alpha = 0.05 level, it means that disp is a significant predictor of the log-odds of a car being manual versus automatic
+
+***
+
+### Part b) Modifying/assessing the model
+
+Choose one of the statistically significant predictors above and re-fit a model using *only* that variable (and an intercept) to predict `am`.
+We'll see how to compare the quality of this model to the one from Part (a) when we talk about cross-validation (CV) in upcoming lectures.
+For now, compare the estimated coefficient of this variable in both models.
+Is there a sizable difference?
+
+Does anything else notable change about the model?
+
+```{r}
+model = glm(am ~ 1 + disp, data = mtcars, family = binomial)
+
+summary(model)
+```
+***
+
+The p-value went from 0.5305 in the previous model to 0.00471 now in the current model, that is a large change
+
+***
+
+Choose one of the statistically significant predictors above.
+Use `ggplot2` to plot `am` as a function of this predictor, and overlay a curve describing the logistic regression output when using *only* this predictor to predict `am` (i.e., the model from Part c above).
+
+```{r}
+library(ggplot2)
+
+model = glm(am ~ 1 + disp, data = mtcars, family = binomial)
+
+ggplot(mtcars, aes(x=disp, y=am) ) + 
+  geom_point() + 
+  geom_smooth(formula='y ~ 1+x', se=FALSE,
+                       method='glm',
+                       method.args=list(family = "binomial"));
+```
+
+
+<br/>
+
+## 3. Guided k-fold CV exercise <small>15pts</small>
+
+In this exercise, we will guide you through an exercise where you are asked to use k-fold cross validation to evaluate the performance of several models.
+
+For this exercise we will use the "Swiss Fertility and Socioeconomic Indicators (1888)" dataset from the `datasets` package, which is loaded below. (To view the help page, run `?datasets::swiss` in your console). We will be using `Fertility` as our response variable.
+
+```{r}
+swiss = datasets::swiss
+```
+
+
+### Part a) Understanding/visualizing data
+
+Read the help page and briefly "introduce" this dataset. Specifically, explain where the data comes from, what variables it contains, and why should people care about the dataset.
+
+***
+
+Switzerland, in 1888, was entering a period known as the demographic transition; i.e., its fertility was beginning to fall from the high level typical of underdeveloped countries.
+The data set is a standardized fertility measure and socio-economic indicators for each of 47 French-speaking provinces of Switzerland at about 1888.
+A data frame with 47 observations on 6 variables, each of which is in percent, i.e., in [0,100].
+
+[1]	Fertility	Ig, ‘common standardized fertility measure’
+[2]	Agriculture	% of males involved in agriculture as occupation
+[3]	Examination	% draftees receiving highest mark on army examination
+[4]	Education	% education beyond primary school for draftees.
+[5]	Catholic	% ‘catholic’ (as opposed to ‘protestant’).
+[6]	Infant.Mortality	live births who live less than 1 year.
+All variables but ‘Fertility’ give proportions of the population.
+
+***
+
+Produce one or some visualizations of the data. Do your best here to try to use your plots to help your viewer best understand the structure and patterns of this dataset. Choose your plots carefully and briefly explain what each plot tells you about the data.
+
+```{r}
+library(ggplot2)
+ggplot(swiss, aes(x = Agriculture, y = Fertility)) + geom_point() + 
+  labs(title = "Agriculture vs Fertility",
+       x = "Agriculture",
+       y = "Fertility")
+
+```
+
+### Part b) Starting with basic lm
+
+Compare a model with all predictors with no interactions with 2 other models of YOUR choice. Fit all 3 models, show their summary outputs, and briefly comment on which one you think might perform the best when used for future predictions and why.
+
+```{r}
+model1 = lm(Fertility ~ Agriculture + Examination + Education + Catholic + Infant.Mortality, data = swiss)
+summary(model1)
+
+model2 <- lm(Fertility ~ Agriculture + Catholic, data = swiss)
+summary(model2)
+
+
+model3 <- lm(Fertility ~ Examination + Education, data = swiss)
+summary(model3)
+
+```
+
+***
+
+I think the model with Agriculture and Catholic predictors might perform the best because Agriculture has a p-value of 0.169
+
+***
+
+### Part c) Estimating MSE using CV
+
+Now, we are going to actually estimate the MSE of each model with K-fold cross validation. First we're going to set a seed and import the `caret` package (it should be already installed since it's a prerequisite for many other packages, but if it's not for some reason, you can install it with `install.packages("caret")`)
+
+```{r}
+set.seed(1)
+library(caret)
+```
+
+Next, use the following chunk, which already has `method` set to `lm`, `data` set to the `swiss` data set, and validation method set to use 5-fold CV, to estimate the MSE of each of your models. All you need to do is add in a formula for your model and repeat for all 3 models you have.
+
+```{r,error=T}
+model1 = train(Fertility ~ Agriculture + Examination + Education + Catholic + Infant.Mortality, method="lm", data=swiss, trControl = trainControl(method="cv", number=5))
+print(summary(model1))
+
+model2 = train(Fertility ~ Agriculture + Catholic, method="lm", data=swiss, trControl = trainControl(method="cv", number=5))
+
+model3 = train(Fertility ~ Examination + Education, method="lm", data=swiss, trControl = trainControl(method="cv", number=5))
+print(summary(model3))
+
+RMSE1 = sqrt(model1$results$RMSE)
+RMSE2 = sqrt(model2$results$RMSE)
+RMSE3 = sqrt(model3$results$RMSE)
+
+RMSE1
+RMSE2
+RMSE3
+```
+
+Once you have your models fitted, use `print( )` to show the summary statistics for each model. Report the RMSE for each model, which is the square root of the MSE. Which of these models performs the best? Which performed the worst? Do these results agree with your expectations?
+
+Bonus: repeat the above step, using `trControl = trainControl(method="repeatedcv", number=5, repeats=3)` which repeats each CV analysis 3times and averages out each run to get a more stable estimate of the MSE. Compare the results with the unrepeated MSE estimates. How do they compare?
+
+```{r}
+# with trControl repeats = 3
+
+model11 = train(Fertility ~ Agriculture + Examination + Education + Catholic + Infant.Mortality, method="lm", data=swiss, trControl = trainControl(method="repeatedcv", number=5, repeats=3))
+print(summary(model11))
+
+model22 = train(Fertility ~ Agriculture + Catholic, method="lm", data=swiss, trControl = trainControl(method="repeatedcv", number=5, repeats=3))
+print(summary(model22))
+
+model33 = train(Fertility ~ Examination + Education, method="lm", data=swiss, trControl = trainControl(method="repeatedcv", number=5, repeats=3))
+print(summary(model33))
+
+RMSE11 = sqrt(model11$results$RMSE)
+RMSE22 = sqrt(model22$results$RMSE)
+RMSE33 = sqrt(model33$results$RMSE)
+
+RMSE11
+RMSE22
+RMSE33
+```
+
+***
+
+Bonus:  
+Using repeats = 3, the resulting MSE from repeating is lower than the unrepeated MSE estimates.
+
+***
+
+<br/>
+
+## 5. Variable selection with `Carseats` <small>10pts</small>
+
+This question should be answered using the `Carseats` dataset from the `ISLR` package. If you do not have it, make sure to install it.
+
+```{r}
+library(ISLR)
+
+Carseats = ISLR::Carseats
+
+# you should read the help page by running ?Carseats
+# we can also peek at the data frame before using it
+str(Carseats)
+head(Carseats)
+```
+
+
+### Part a) Visualizing/fitting
+
+First, make some visualizations of the dataset to help set the stage for the rest of the analysis. Try to pick plots to show that are interesting informative.
+
+```{r}
+ggplot(Carseats, aes(x = Price, y = Sales)) +
+  geom_point()
+```
+
+Using some variable selection method (stepwise, LASSO, ridge, or just manually comparing a preselected of models using their MSEs), choose a set of predictors to use to predict `Sales`. Try to find the best model that you can that explains the data well and doesn't have useless predictors. Explain the choices you made and show the final model.
+
+```{r}
+library(glmnet)
+y = Carseats[,1] # Grab just the first column
+# ... and the predictors are everything else.
+x = Carseats[, -c(1)]
+carseats_lasso_lambda0 = glmnet(x, y, alpha = 1, lambda=0.71)
+coef(carseats_lasso_lambda0)
+```
+***
+
+Using LASSO at alpha = 1, I incrementally increased lambda starting from 0 to set coefficients of predictors to 0, finally at lambda = 0.71, only 2 predictors were not 0: Advertising and Price
+
+***
+
+```{r}
+vanilla_lm = lm(Sales ~ Advertising + Price, Carseats)
+summary(vanilla_lm)
+```
+
+
+### Part b) Interpreting/assessing model
+
+According to your chosen model, Which predictors appear to be the most important or significant in predicting sales? Provide an interpretation of each coefficient in your model. Be careful: some of the variables in the model are qualitative!
+
+```{r}
+coef(vanilla_lm)
+```
+
+***
+
+According to a model selected by LASSO, Advertising and Price appear to be the most important in predicting sales.
+For each additional unit of Advertising, the model predicts an increase of 0.1231 units in Sales; for each additional unit increase in Price, the model predicts a decrease of 0.0546 units in Sales; in both cases given other predictor is held constant.
+
+***
+
+Estimate the out of sample MSE of your model and check any assumptions you made during your model fitting process. Discuss any potential model violations. How satisfied are you with your final model?
+
+```{r}
+RSE = 2.399
+MSE = RSE ^ 2
+MSE
+
+plot(vanilla_lm, which = 1:2)
+```
+
+***
+
+The estimated sample MSE of the model is 5.755201. During the modek fitting process we assume that the response varable (Sales) has a linear relationship with the predictor variable and that the erros are normally distributed, have constant variance, and are independent. Based off the plots every thing looks good, there are only 3 possible outliers. I am very satisfied with the model.
+
+***
